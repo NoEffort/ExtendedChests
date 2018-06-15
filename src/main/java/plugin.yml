@@ -1,0 +1,10 @@
+name: ExtendedChests
+main: me.noeffort.extendedchests.Main
+version: 0.0.5
+commands:
+  extendedchest:
+    description: Main command for the plugin.
+    usage: "Usage: /<command>"
+  reloadchest:
+    description: Reload command for the plugin.
+    usage: "Usage: /<command>"
