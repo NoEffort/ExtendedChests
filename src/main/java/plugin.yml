@@ -1,10 +1,16 @@
 name: ExtendedChests
 main: me.noeffort.extendedchests.Main
-version: 0.0.5
+version: 0.1.8
+
+description: Expand the range of your chests today!
+authors: [NoEffort, Air_neko]
+
 commands:
   extendedchest:
+    aliases: ec
     description: Main command for the plugin.
     usage: "Usage: /<command>"
   reloadchest:
+    aliases: rc
     description: Reload command for the plugin.
     usage: "Usage: /<command>"

@@ -1,5 +1,7 @@
 package me.noeffort.extendedchests.util;
 
+import java.util.Set;
+
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -10,55 +12,59 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.Inventory;
-import org.bukkit.util.BlockIterator;
 
 public class PlayerClick implements Listener {
 	
 	//Ye old EventHandler
 	@EventHandler
-	public Block PlayerRightClickBlock(PlayerInteractEvent event) {
+	public void onRightClickAir(PlayerInteractEvent event){
 		
-		//Gets the player
-		Player player = (Player) event.getPlayer();
-		//Pre-determines the base range that you can open the chest at (normally)
-		int range = 5;
-		//Multiplier used to expand the radius
-		float rangeMultiplier = 1.0F;
-		
-		//Actually multiplying them together
-		int processed = (int) rangeMultiplier;
-		processed = processed * range;
-		
-		//This is the issue. I'm trying to find processed before I can tell it what block type to use.
-		//Each block type will change the rangeMultiplier, yet it gets called before that can happen.
-		BlockIterator iterator = new BlockIterator(player, processed);
-		//Looking for the chest block
-		Block lastBlock = iterator.next();
-		
-		//Looping for the chest block
-		while(iterator.hasNext()) {
-			lastBlock = iterator.next();
-			//Fuck air
-			if(lastBlock.getType() == Material.AIR) {
-				continue;
-			}
-			//Found it
-			else if(lastBlock.getType() == Material.CHEST) {
-				//Getting the chest block's location
-				Location blockLocation = lastBlock.getLocation();
-				//Getting the player's location
-				Location playerLocation = player.getPlayer().getLocation();
-
-				//Finding the block under the chest block
-				Location newBlock = blockLocation;
-				newBlock.subtract(0, 1, 0).getBlock();
-				
-				//Re-defining the block under the chest
-				Block belowBlock = newBlock.getWorld().getBlockAt(newBlock);
-				
-				//Switching the acceptable block types and defining multipliers
-				//This part is basically useless because the range is already defined...
-				switch(belowBlock.getType()) {
+		//Gets the action (Left-Clicking)
+		if (event.getAction() == Action.LEFT_CLICK_AIR){
+			//Gets the player
+			Player player = (Player) event.getPlayer();
+			
+			//Defines the max range
+			int max = 100;
+			
+			//Defines the "openable" range
+			int range = 5;
+			
+			//Mutltiplier used later for the "openable" range
+			float rangeMultiplier = 1.0F;
+			
+			//Creates a list of blocks in the player's sight
+			java.util.List<Block> blocks = player.getLineOfSight((Set<Material>) null, max);
+			
+			//Loops through the list (blocks) to find a chest
+			for (int i = 0; i < blocks.size(); i++){
+				//Found it
+				if (blocks.get(i).getType() == Material.CHEST){
+					//Gets the block; defines as block
+					Block block = blocks.get(i);
+					//Re-sets the material as a chest
+					block.setType(Material.CHEST);
+					
+					//Gets the state of the chest
+					Chest chest = (Chest) block.getState();
+					
+					//Defines the inventory of the chest (inv)
+					Inventory inv = chest.getBlockInventory();
+					
+					//Gets the block's location
+					Location blockLocation = blocks.get(i).getLocation();
+					//Gets the player's location
+					Location playerLocation = player.getLocation();
+					
+					//New location on the block below the chest
+					Location newBlock = blockLocation.clone();
+					newBlock.subtract(0, 1, 0);
+					
+					//Defining the block below the chest
+					Block belowBlock = newBlock.getWorld().getBlockAt(newBlock);
+					
+					//Switches through the block types of belowBlock
+					switch(belowBlock.getType()){
 					case IRON_BLOCK:
 						rangeMultiplier = 1.5F;
 						break;
@@ -72,35 +78,29 @@ public class PlayerClick implements Listener {
 						rangeMultiplier = 3.0F;
 						break;
 					default:
+						rangeMultiplier = 1.0F;
 						break;
-				}
-				
-				//Checking to see if the player is within the range of the chest
-				if(blockLocation.distance(playerLocation) < processed) {
-					//Checking for action
-					if(event.getAction() == Action.LEFT_CLICK_AIR) {
-						//Getting the chest's location again
-						blockLocation.add(0, 1, 0).getBlock();
-						Block block = (Block) blockLocation.getBlock();
-						//Re-setting the type in case gay shit happens
-						//(And you can't directly set a block to a chest anymore)
-						block.setType(Material.CHEST);
-						//Getting the chest's state (rotation and shit)
-						Chest chest = (Chest) block.getState();
-						//Opening the inventory
-						Inventory inventory = chest.getInventory();
-						player.openInventory(inventory);
 					}
-				} else {
-					//Returning this shit
-					return belowBlock;
+					
+					//Does many maths
+					int processed = (int) ((float)range * rangeMultiplier);
+					
+					//Determines if the player is within the block's range
+					if(blockLocation.distance(playerLocation) < processed){
+						//Opens the inventory
+						player.openInventory(inv);
+					}
+					break;
 				}
+				//Fuck air
+				else if(blocks.get(i).getType() == Material.AIR){
+					continue;
+				}
+				else{
+					break;
+				}	
 			}
-			//Stop reading this
-			break;
 		}
-		return lastBlock;
 	}
-
 }
 //What a nerd
