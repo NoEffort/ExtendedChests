@@ -15,6 +15,9 @@ public interface Messages {
 	String error = prefix + "&cAn error has occured!";
 	String unknown = prefix + "&4An unknown error has occured! Please inform the plugin developer!";
 	String reload = prefix + "&aConfig files reloaded!";
+	String missingfile = prefix + "&cConfig file(s) missing or invalid!";
+	String invalidChest = prefix + "&cThe final line of this sign is empty, ignoring!";
+	String filefound = prefix + "&aNeeded config files either found or generated!";
 	
 }
 

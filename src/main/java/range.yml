@@ -1,0 +1,8 @@
+useDefaults: true
+baseRange: 5
+rangeMultiplier:
+  default: 1.0
+  iron: 1.5
+  gold: 2.0
+  diamond: 2.5
+  emerald: 3.0
