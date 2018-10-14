@@ -3,25 +3,25 @@ package me.noeffort.extendedchests;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Random;
-import java.util.logging.Level;
-
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandSender;
+import org.bukkit.craftbukkit.v1_12_R1.inventory.CraftItemStack;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitScheduler;
 
 import me.noeffort.extendedchests.command.ExtendedChestCommand;
-import me.noeffort.extendedchests.util.MessageUtil;
 import me.noeffort.extendedchests.util.PlayerClick;
 import me.noeffort.extendedchests.util.config.PlayerConfig;
 import me.noeffort.extendedchests.util.config.RangeConfig;
+import net.minecraft.server.v1_12_R1.NBTTagCompound;
+import net.minecraft.server.v1_12_R1.NBTTagString;
 
 /*
  * Developed by Air_neko, NoEffort
@@ -37,33 +37,38 @@ public class Main extends JavaPlugin {
 	 * Calling the RangeConfig and PlayerConfig classes
 	 * They must be static for other sections of code to work
 	 */
-	private static RangeConfig rangeConfig;
-	private static PlayerConfig playerConfig;
+	private RangeConfig range;
+	private PlayerConfig player;
+	private PlayerClick click;
 	
 	//Enable this shit
 	@Override
 	public void onEnable() {
+		
 		instance = this;
+		
 		getLogger().info("Plugin Enabled! " + getVersion());
-		//Register commands function
+		
+		registerConfig();
 		registerCommands();
-		
-		/*
-		 * Making them instances of this plugin, in accordance with their constructors
-		 */
-		rangeConfig = new RangeConfig(instance);
-		playerConfig = new PlayerConfig(instance);
-		
-		//Registering the listener
 		registerListeners();
 		
-		//Gets each config
-		rangeConfig.getRangeConfigFile();
-		playerConfig.getPlayerConfigFile();
+		runChecker();
+	}
+	
+	@Override
+	public void onDisable() {
+		stopTask(taskID);
+		range.saveConfig();
+		player.saveConfig();
+	}
+	
+	public void registerConfig() {
+		range = new RangeConfig();
+		range.createFile();
 		
-		//Creates / Reloads each config
-		rangeConfig.reloadRangeConfig();
-		playerConfig.reloadPlayerConfig();
+		player = new PlayerConfig();
+		player.createFile();
 	}
 	
 	//Getting the current program update
@@ -77,14 +82,13 @@ public class Main extends JavaPlugin {
 	//That same registerCommands function from earlier
 	private void registerCommands() {
 		//Lonely command
-		this.getCommand("extendedchest").setExecutor(new ExtendedChestCommand(this));
+		this.getCommand("extendedchest").setExecutor(new ExtendedChestCommand());
 	}
 	
 	//Getting and loading all listeners in the program
 	private void registerListeners() {
-		getServer().getPluginManager().registerEvents(new PlayerClick(this), this);
-		getServer().getPluginManager().registerEvents(new RangeConfig(this), this);
-		getServer().getPluginManager().registerEvents(new PlayerConfig(this), this);
+		getServer().getPluginManager().registerEvents(new PlayerClick(), this);
+		click = new PlayerClick();
 	}
 	
 	//Getting the plugin's version from the plugin.yml
@@ -94,31 +98,35 @@ public class Main extends JavaPlugin {
 	}
 	
 	//Global variables
-	private static ItemStack globalItem;
-	private static ItemMeta globalMeta;
+	private ItemStack globalItem;
+	private ItemMeta globalMeta;
 	
 	//Method for creating an item
-	public static ItemStack createItem(Player player) {	
+	public ItemStack createItem(Player player) {	
 		//Makes an ItemStack (item)
 		globalItem = new ItemStack(Material.STICK);
 		//Allows for meta changing
 		globalMeta = globalItem.getItemMeta();
 		//Lame stuff
 		globalMeta.setDisplayName(ChatColor.WHITE + "Chest Opener");
-		globalMeta.setLore(Arrays.asList(ChatColor.RED + "Assigned to: " + player.getName(),
-				ChatColor.RED + playerConfig.getPlayerConfig().getString("chests." + player.getName() + ".code")));
+		globalMeta.setLore(Arrays.asList(ChatColor.RED + "Assigned to: " + player.getName()));
 		globalItem.setItemMeta(globalMeta);
+		net.minecraft.server.v1_12_R1.ItemStack nmsStack = CraftItemStack.asNMSCopy(globalItem);
+		NBTTagCompound compound = (nmsStack.hasTag()) ? nmsStack.getTag() : new NBTTagCompound();
+		compound.set("Code", new NBTTagString(this.player.getConfig().getString("chests." + player.getName() + ".code")));
+		nmsStack.setTag(compound);
+		globalItem = CraftItemStack.asBukkitCopy(nmsStack);
 		//Returning the item
 		return globalItem;
 	}
 	
 	//Getting global variable(s)
-	public static ItemStack getChestItem() {
+	public ItemStack getChestItem() {
 		return globalItem;
 	}
 	
 	//Basically making a mini uuid
-	public static String generateItemCode() {
+	public String generateItemCode() {
 		StringBuilder code = new StringBuilder();
 		String id = "ABCDEF1234567890";
 		Random random = new Random();
@@ -126,45 +134,52 @@ public class Main extends JavaPlugin {
 			int index = (int) (random.nextFloat() * id.length());
 			code.append(id.charAt(index));
 		}
+		
+		HashMap<String, String> map = new HashMap<String, String>();
+		
+		for(String key : player.getConfig().getConfigurationSection("chests").getKeys(false)) {
+			map.put(key, player.getConfig().getString("chests." + key + ".code"));
+			for(String str : map.values()) {
+				if(str.equals(code.toString())) {
+					getLogger().warning("Duplicate Code Found! Editing...");
+					for(int idx = 0; idx < 5; idx++) {
+						int index = (int) (random.nextFloat() * id.length());
+						code.append(id.charAt(index));
+					}
+				} else {
+					return code.toString();
+				}
+			}
+		}
+		
 		return code.toString();
 	}
 	
-	//Reload command for nerds
-	public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-		if(cmd.getName().equalsIgnoreCase("reloadchest")) {
-			if(sender instanceof Player) {
-				Player player = (Player) sender;
-				if(sender.isOp()) {
-					player.sendMessage(MessageUtil.translate(Messages.reload));
-					
-					if(!playerConfig.getPlayerConfigFile().exists() || !rangeConfig.getRangeConfigFile().exists()) {
-						sender.sendMessage(MessageUtil.translate(Messages.missingfile));
-						saveResource("range.yml", false);
-						saveResource("players.yml", false);
-						sender.sendMessage(MessageUtil.translate(Messages.filefound));
-						Bukkit.getLogger().log(Level.INFO, "Config files generated!");
-						return true;
-					} else {
-						rangeConfig.getRangeConfigFile();
-						playerConfig.getPlayerConfigFile();
-						
-						rangeConfig.reloadRangeConfig();
-						playerConfig.reloadPlayerConfig();
-					}
-					return true;
-				}
-			} else {
-				//Bad permissions
-				sender.sendMessage(MessageUtil.translate(Messages.permissions));
-				return true;
+	private int taskID;
+	
+	private void runChecker() {
+		
+		BukkitScheduler scheduler = Bukkit.getServer().getScheduler();
+		taskID = scheduler.scheduleSyncRepeatingTask(this, new Runnable() {
+			@Override
+			public void run() {
+				click.checkSigns();
 			}
-		} else {
-			return true;
-		}
-		return false;
+		}, 0L, 6000L);
 	}
 	
-	//Getter for the Main class' instance
+	private void stopTask(int id) {
+		Bukkit.getScheduler().cancelTask(id);
+	}
+	
+	public PlayerConfig getPlayerConfig() {
+		return player;
+	}
+	
+	public RangeConfig getRangeConfig() {
+		return range;
+	}
+	
 	public static Main get() {
 		return Main.instance;
 	}
